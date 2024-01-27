@@ -3,6 +3,11 @@
 [![Testing](https://github.com/materialsvirtuallab/m3gnet/workflows/Testing%20-%20main/badge.svg)](https://github.com/materialsvirtuallab/m3gnet/workflows/Testing/badge.svg)
 [![Downloads](https://pepy.tech/badge/m3gnet)](https://pepy.tech/project/m3gnet)
 
+> **_NOTE:_**  A new implementation based on the Deep Graph Library and PyTorch called the
+> [Materials Graph Library (MatGL)](https://github.com/materialsvirtuallab/matgl) has replaced this implementation.
+> This repository has been archived and will no longer be maintained. It will be kept purely as a reference
+> implementation. Users are recommended to use matgl instead.
+
 # M3GNet
 
 [M3GNet](https://www.nature.com/articles/s43588-022-00349-3) is a new materials graph neural network architecture that incorporates 3-body interactions. A key difference with prior materials graph implementations such as [MEGNet](https://github.com/materialsvirtuallab/megnet) is the addition of the coordinates for atoms and the 3×3 lattice matrix in crystals, which are necessary for obtaining tensorial quantities such as forces and stresses via auto-differentiation.
@@ -316,6 +321,56 @@ For stresses, we use the convention that compressive stress gives negative value
 VASP calculations (default unit is kBar) should be multiplied by -0.1 to work directly with the model.
 
 We use validation dataset to select the stopping epoch number. The dataset has similar format as the training dataset.
+
+If you want to use the offical MPF dataset shared above, here are some code examples that you can follow to load the dataset smoothly and train your own model.
+
+First, load the MPF dataset consisting of block_0 and block_1
+
+```python
+import pickle as pk
+import pandas as pd
+import pymatgen
+
+print('loading the MPF dataset 2021')
+with open('/yourpath/block_0.p', 'rb') as f:
+    data = pk.load(f)
+
+with open('/yourpath/block_1.p', 'rb') as f:
+    data2 = pk.load(f)
+print('MPF dataset 2021 loaded')
+data.update(data2)
+df = pd.DataFrame.from_dict(data)
+```
+
+Then, split the data based on material id and map the energy to formation energy with unit eV/atom
+
+```python
+id_train, id_val, id_test = get_id_train_val_test(
+    total_size=len(data),
+    split_seed=42,
+    train_ratio=0.90,
+    val_ratio=0.05,
+    test_ratio=0.05,
+    keep_data_order=False,
+)
+
+cnt = 0
+for idx, item in df.items():
+    # import pdb; pdb.set_trace()
+    if cnt in id_train:
+        for iid in range(len(item['energy'])):
+            dataset_train.append({"atoms":item['structure'][iid], "energy":item['energy'][iid] / len(item['force'][iid]), "force": np.array(item['force'][iid])})
+    elif cnt in id_val:
+        for iid in range(len(item['energy'])):
+            dataset_val.append({"atoms":item['structure'][iid], "energy":item['energy'][iid] / len(item['force'][iid]), "force": np.array(item['force'][iid])})
+    elif cnt in id_test:
+        for iid in range(len(item['energy'])):
+            dataset_test.append({"atoms":item['structure'][iid], "energy":item['energy'][iid] / len(item['force'][iid]), "force": np.array(item['force'][iid])})
+    cnt += 1
+
+print('using %d samples to train, %d samples to evaluate, and %d samples to test'%(len(dataset_train), len(dataset_val), len(dataset_test)))
+```
+After this, you can use the dataset_train to train, dataset_val to evaluate, and dataset_test to test.
 
 A minimal example of model training is shown below.
 
